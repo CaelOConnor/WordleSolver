@@ -8,15 +8,17 @@ import random
 
 vowels = ['a', 'e', 'u', 'i', 'o', 'y']
 
-class letter:
+class Letter:
 
     def __init__(self, let, color, pos):
-        self.let = let
-        self.color = color
-        self.pso = pos
+        self.let = let.upper()
+        self.color = color.lower()
+        self.pos = pos
+    
+    def __repr__(self):
+        return f"Letter(let='{self.let}', color='{self.color}', pos={self.pos})"
 
-
-class solver:
+class Solver:
 
     def __init__(self, words_file='words.txt'):
         self.words = pd.read_csv(words_file, header=None)[0]
@@ -24,65 +26,56 @@ class solver:
 
     # first word
     def first_word(self):
-        vowel_heavy_words = words.map(lambda c: sum([Counter(c.lower()).get(i, 0) for i in vowels ]) >= 3)
+        vowel_heavy_words = []
+
+        for word in self.words:
+            vowel_count = 0
+
+            for v in vowels:
+                vowel_count += word.count(v)
+
+            if vowel_count >= 3:
+                vowel_heavy_words.append(word)
+
+        if not vowel_heavy_words:
+            print("No vowel-heavy words found.")
+            return None
+
         word_to_guess = random.choice(vowel_heavy_words)
-        print("For your first word you should guess: ", word_to_guess)
+        print("For your first word you should guess:", word_to_guess)
+        return word_to_guess
 
     # get info from user
     def get_info(self):
-        letter1 = input("Please enter the first letter:")
-        color1 = input("Please enter the first letters color (gray, yellow, or green): ")
-        letter2 = input("Please enter the second letter:")
-        color2 = input("Please enter the second letters color (gray, yellow, or green): ")
-        letter3 = input("Please enter the third letter:")
-        color3 = input("Please enter the third letters color (gray, yellow, or green): ")
-        letter4 = input("Please enter the fourth letter:")
-        color4 = input("Please enter the fourth letters color (gray, yellow, or green): ")
-        letter5 = input("Please enter the fifth letter:")
-        color5 = input("Please enter the fifth letters color (gray, yellow, or green): ")
+        guess = []
+        print("Please input the guess and its information: ")
+        for pos in range(5):
+            let = input(f"Letter {pos + 1}: ").strip().lower()
+            color = input("Color (green or yellow or gray): ").strip().lower()
+            while color not in {"green", "yellow", "gray"}:
+                color = input("Invalid color. Enter green, yellow, or gray: ").strip().lower()
+            guess.append(Letter(let, color, pos))
+        return guess
 
     # guess bassed on on info from prev info
-    def next_guess(self, let1, col1, let2, col2, let3, col3, let4, col4, let5, col5):
-        letters = [let1.lower(), let2.lower(), let3.lower(), let4.lower(), let5.lower()]
-        colors = [col1.lower(), col2.lower(), col3.lower(), col4.lower(), col5.lower()]
+    def next_guess(self, guess_letters):
+        possible_words = self.words.copy()
 
-        possible_words = words.copy()
+        for ltr in guess_letters:
+            let, col, pos = ltr.let.lower(), ltr.color, ltr.pos
 
-        for i in range(5):
-            if colors[i] == 'gray':
-                possible_words = possible_words[
-                    ~possible_words.str.contains(letters[i])
-                ]
+            if col == "gray": # fix latter for words where a letter is both gray and green or yellow
+                possible_words = possible_words[~possible_words.str.contains(let)] # words = word[not words that contains that letter]
 
-            if colors[i] == 'green':
-                if i == 0:
-                    possible_words = possible_words[possible_words.str[0] == letters[i]]
-                if i == 1:
-                    possible_words = possible_words[possible_words.str[1] == letters[i]]
-                if i == 2:
-                    possible_words = possible_words[possible_words.str[2] == letters[i]]
-                if i == 3:
-                    possible_words = possible_words[possible_words.str[3] == letters[i]]
-                if i == 4:
-                    possible_words = possible_words[possible_words.str[4] == letters[i]]
+            elif col == "green":
+                possible_words = possible_words[possible_words.str[pos] == let] # contains the letters
 
-            else: # yellow
-                if colors[i] == 'yellow':
-                    possible_words = possible_words[
-                        possible_words.str.contains(letters[i])
-                    ]
-                    if i == 0:
-                        possible_words = possible_words[possible_words.str[0] != letters[i]]
-                    if i == 1:
-                        possible_words = possible_words[possible_words.str[1] != letters[i]]
-                    if i == 2:
-                        possible_words = possible_words[possible_words.str[2] != letters[i]]
-                    if i == 3:
-                        possible_words = possible_words[possible_words.str[3] != letters[i]]
-                    if i == 4:
-                        possible_words = possible_words[possible_words.str[4] != letters[i]]
-
-        if len(possible_words) == 0:
+            elif col == "yellow":
+                mask = possible_words.str.contains(let) # contains the ltters but not in that spot
+                mask &= possible_words.str[pos] != let
+                possible_words = possible_words[mask]
+            
+        if possible_words.empty:
             print("No possible words left.")
             return None
 
@@ -90,8 +83,14 @@ class solver:
         print("Next guess:", guess)
         return guess
 
-
-
+def main():
+    solver = Solver()
+    firstword = solver.first_word()
+    guess_counter = 1
+    while guess_counter <= 5:
+        user_guess = solver.get_info()
+        #print(user_guess)
+        next_guess_to_use = solver.next_guess(user_guess)
 
 if __name__ == "__main__":
     main()
