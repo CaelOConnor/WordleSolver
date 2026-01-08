@@ -34,10 +34,45 @@ def take_screenshot():
         img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR) #BGR
         return img
 
-#def get_tile_from_screenshot():
+def get_tile(board, row, col): # return pic of wordle square
+    h, w, channels = board.shape 
+    tile_h = h // 6
+    tile_w = w // 5
+    top = row * tile_h
+    bottom = (row + 1) * tile_h
+    left = col * tile_w
+    right = (col + 1) * tile_w
+    return board[top:bottom, left:right]
+
+def tile_is_empty(tile): # change this to return true or false based on color of tile 
+    h, w, channels = tile.shape 
+    tile_h = h // 6
+    tile_w = w // 5
+    top = row * tile_h
+    bottom = (row + 1) * tile_h
+    left = col * tile_w
+    right = (col + 1) * tile_w
+    return board[top:bottom, left:right]
     
 
-#def check_left_most_tiles(img):
+def whole_row_is_green():
+    pass
+    
+def check_left_most_tiles(board):
+    tile = get_tile(board, row, 0) # check row 1 to see if we need to do first guess
+    if tile_is_empty(tile):
+        first_word
+    for row in range(1, 6):
+        tile = get_tile(board, row, 0)
+        if tile_is_empty(tile):
+            get_info_of_previous
+            next_guess
+        elif whole_row_is_green():
+            print("We won")
+        else:
+            print("We lost")
+
+
 
 
 def crop_board(img): # img is a numpy array
@@ -63,6 +98,8 @@ def main():
     # fix keyboard crop
     board = crop_board(img)
     keyboard = crop_keyboard(img)
+
+    find_cur_row()
 
     #cv2.imshow("uncropped board", img)
     cv2.imshow("board", board)
