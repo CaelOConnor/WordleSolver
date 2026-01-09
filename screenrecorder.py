@@ -16,11 +16,17 @@ def take_screenshot():
         screenshot_height = 750
 
         # The screen part to capture
+        # monitor = {
+        #     "top": monitor["top"] + monitor["height"] // 2 - screenshot_height // 2,
+        #     "left": monitor["left"] + monitor["width"] // 2 - screenshot_width // 2,
+        #     "width": screenshot_width,
+        #     "height": screenshot_height
+        # }
         monitor = {
-            "top": monitor["top"] + monitor["height"] // 2 - screenshot_height // 2,
+            "top": monitor["top"] + monitor["height"] // 2 - screenshot_height // 2 + 10,
             "left": monitor["left"] + monitor["width"] // 2 - screenshot_width // 2,
             "width": screenshot_width,
-            "height": screenshot_height
+            "height": screenshot_height - 10
         }
         output = "center.png"
 
@@ -127,11 +133,18 @@ def main():
             print(tile_is_empty(tile))
             cv2.waitKey(50)
 
+    
+    # for col in range(5):
+    #     tile = get_tile(boardc, 0, col)
+    #     cv2.imshow(f"tile {0},{col}", tile)
+
     #find_cur_row()
 
     #cv2.imshow("uncropped board", img)
     #cv2.imshow("board", board)
+
     #cv2.imshow("board cropped", boardc)
+
     #cv2.imshow("keyboard", keyboard)
 
     #cv2.imshow("top left tile", tile)
