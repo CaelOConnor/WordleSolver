@@ -56,10 +56,31 @@ def tile_is_empty(tile): # change this to return true or false based on color of
     avg_color = np.mean(pixel_to_check, axis=(0, 1))
     brightness = np.mean(avg_color)
     return brightness < 20 # tweek this value for empty vs gray tiles
+
+def get_tile_color(tile):
+    h, w, channels = tile.shape
+    y = int(h * 0.15) # pixel a letter wont touch
+    x = int(w * 0.15)
+
+    b, g, r = tile[y, x] # get vallues at that spot
+    if abs(int(b) - int(g)) < 10 and abs(int(b) - int(r)) < 10:
+        return "gray"
+    if g > r + 25 and g > b + 25:
+        return "green"
+    return "yellow"
     
 
-def whole_row_is_green():
-    pass
+def whole_row_is_green(board, row):
+    green_counter = 0
+    for col in range(0, 5):
+        tile = get_tile(board, row, col)
+        if get_tile_color(tile) == 'green':
+            green_counter += 1
+    if green_counter == 5:
+        return True
+    else:
+        return False
+    
     
 def check_left_most_tiles(board):
     tile = get_tile(board, row, 0) # check row 1 to see if we need to do first guess
@@ -72,8 +93,9 @@ def check_left_most_tiles(board):
             next_guess
         elif whole_row_is_green():
             print("We won")
-        else:
-            print("We lost")
+            break
+    if whole_row_is_green == False:
+        print("We lost")
 
 def trim_board(board):
     gray = cv2.cvtColor(board, cv2.COLOR_BGR2GRAY) # convert to grayscale
@@ -130,7 +152,8 @@ def main():
         for c in range(5):
             tile = get_tile(boardc, row, c)
             #cv2.imshow(f"tile {0},{c}", tile)
-            print(tile_is_empty(tile))
+            #print(tile_is_empty(tile))
+            print(get_tile_color(tile))
             cv2.waitKey(50)
 
     
