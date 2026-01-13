@@ -4,6 +4,7 @@
 import cv2
 import mss
 import numpy as np
+import os
 
 def get_size():
     with mss.mss() as sct:
@@ -81,6 +82,52 @@ def whole_row_is_green(board, row):
     else:
         return False
     
+def preprocess_tile_for_letter(tile):
+    gray = cv2.cvtColor(tile, cv2.COLOR_BGR2GRAY)
+    _, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY_INV) # Letter becomes white
+    coords = cv2.findNonZero(thresh)     # Find letter bounding box
+    if coords is None:
+        return None  # empty tile
+
+    x, y, w, h = cv2.boundingRect(coords)
+    letter = thresh[y:y+h, x:x+w]
+    letter = cv2.resize(letter, (40, 40)) # Normalize size
+    return letter
+
+def load_templates(folder="letter_pics"): # makes everytrhing 40x40
+    templates = {}
+
+    for filename in os.listdir(folder):
+        if not filename.lower().endswith(".png"):
+            continue
+
+        letter = filename.split("_")[-1][0].upper()
+        path = os.path.join(folder, filename)
+        img = cv2.imread(path)
+        processed = preprocess_tile_for_letter(img)
+        if processed is not None:
+            templates[letter] = processed
+
+    return templates
+    
+def recognize_letter(tile, templates):
+    processed = preprocess_tile_for_letter(tile)
+    if processed is None:
+        return None
+
+    best_score = -1
+    best_letter = None
+
+    for letter, tmpl in templates.items():
+        res = cv2.matchTemplate(processed, tmpl, cv2.TM_CCOEFF_NORMED)
+        score = res[0][0]
+
+        if score > best_score:
+            best_score = score
+            best_letter = letter
+
+    return best_letter
+
     
 def check_left_most_tiles(board):
     tile = get_tile(board, row, 0) # check row 1 to see if we need to do first guess
@@ -140,7 +187,7 @@ def crop_keyboard(img): # img is a numpy array
 
 def main():
     #size = get_size()
-
+    templates = load_templates()
     img = take_screenshot()
     board = crop_board(img)
     boardc = trim_board(board)
@@ -151,10 +198,13 @@ def main():
     for row in range(6):
         for c in range(5):
             tile = get_tile(boardc, row, c)
+            #print("tile shape:", tile.shape)
             #cv2.imshow(f"tile {0},{c}", tile)
             #print(tile_is_empty(tile))
-            print(get_tile_color(tile))
+            #print(get_tile_color(tile))
             cv2.waitKey(50)
+            letter = recognize_letter(tile, templates)
+            print(letter)
 
     
     # for col in range(5):
