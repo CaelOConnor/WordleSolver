@@ -5,6 +5,8 @@ import cv2
 import mss
 import numpy as np
 import os
+import time
+import pyautogui
 
 def get_size():
     with mss.mss() as sct:
@@ -15,14 +17,6 @@ def take_screenshot():
         monitor = sct.monitors[1]
         screenshot_width = 500
         screenshot_height = 750
-
-        # The screen part to capture
-        # monitor = {
-        #     "top": monitor["top"] + monitor["height"] // 2 - screenshot_height // 2,
-        #     "left": monitor["left"] + monitor["width"] // 2 - screenshot_width // 2,
-        #     "width": screenshot_width,
-        #     "height": screenshot_height
-        # }
         monitor = {
             "top": monitor["top"] + monitor["height"] // 2 - screenshot_height // 2 + 10,
             "left": monitor["left"] + monitor["width"] // 2 - screenshot_width // 2,
@@ -30,13 +24,8 @@ def take_screenshot():
             "height": screenshot_height - 10
         }
         output = "center.png"
-
-        # Grab the data
         sct_img = sct.grab(monitor)
-
-        # Save to the picture file
         #mss.tools.to_png(sct_img.rgb, sct_img.size, output=output)
-
         #print(output)
         img = np.array(sct_img)
         img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR) #BGR
@@ -69,7 +58,6 @@ def get_tile_color(tile):
     if g > r + 25 and g > b + 25:
         return "green"
     return "yellow"
-    
 
 def whole_row_is_green(board, row):
     green_counter = 0
@@ -81,52 +69,67 @@ def whole_row_is_green(board, row):
         return True
     else:
         return False
-    
+
 def preprocess_tile_for_letter(tile):
     gray = cv2.cvtColor(tile, cv2.COLOR_BGR2GRAY)
-    _, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY_INV) # Letter becomes white
-    coords = cv2.findNonZero(thresh)     # Find letter bounding box
-    if coords is None:
-        return None  # empty tile
+    _, thresh = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY) # Letter becomes white
+    # Remove noise
+    kernel = np.ones((2, 2), np.uint8)
+    thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
+    return thresh
 
-    x, y, w, h = cv2.boundingRect(coords)
-    letter = thresh[y:y+h, x:x+w]
-    letter = cv2.resize(letter, (40, 40)) # Normalize size
-    return letter
+def center_letter(binary, size=40):
+    ys, xs = np.where(binary > 0)
 
-def load_templates(folder="letter_pics"): # makes everytrhing 40x40
+    if len(xs) == 0:
+        return np.zeros((size, size), dtype=np.uint8)
+
+    top, bottom = ys.min(), ys.max()
+    left, right = xs.min(), xs.max()
+    letter = binary[top:bottom+1, left:right+1]
+    h, w = letter.shape
+
+    # Create square canvas so all letters are the same size for template matching
+    canvas = np.zeros((max(h, w), max(h, w)), dtype=np.uint8)
+    y_off = (canvas.shape[0] - h) // 2 # centering the letter
+    x_off = (canvas.shape[1] - w) // 2
+    canvas[y_off:y_off+h, x_off:x_off+w] = letter
+    return cv2.resize(canvas, (size, size))
+
+def load_templates():
     templates = {}
-
-    for filename in os.listdir(folder):
-        if not filename.lower().endswith(".png"):
-            continue
-
-        letter = filename.split("_")[-1][0].upper()
-        path = os.path.join(folder, filename)
-        img = cv2.imread(path)
+    for ch in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+        img = cv2.imread(f"letter_pics/letters_{ch}.png")
         processed = preprocess_tile_for_letter(img)
-        if processed is not None:
-            templates[letter] = processed
-
+        centered = center_letter(processed)
+        templates[ch] = centered
     return templates
-    
+
 def recognize_letter(tile, templates):
     processed = preprocess_tile_for_letter(tile)
-    if processed is None:
-        return None
+    centered = center_letter(processed)
 
-    best_score = -1
+    # cv2.imshow("tile_processed", centered)
+    # cv2.imshow("template_A", templates["A"])
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
+
+    best_score = 0
     best_letter = None
 
     for letter, tmpl in templates.items():
-        res = cv2.matchTemplate(processed, tmpl, cv2.TM_CCOEFF_NORMED)
+        res = cv2.matchTemplate(centered, tmpl, cv2.TM_CCOEFF_NORMED)
         score = res[0][0]
 
         if score > best_score:
             best_score = score
             best_letter = letter
 
+    if best_score < 0.4:
+        return None
+
     return best_letter
+
 
     
 def check_left_most_tiles(board):
@@ -188,6 +191,13 @@ def crop_keyboard(img): # img is a numpy array
 def main():
     #size = get_size()
     templates = load_templates()
+
+
+    # for ch in "AEIOU":
+    #     cv2.imshow(ch, templates[ch])
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
+
     img = take_screenshot()
     board = crop_board(img)
     boardc = trim_board(board)
