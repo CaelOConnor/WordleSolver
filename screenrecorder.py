@@ -7,6 +7,7 @@ import numpy as np
 import os
 import time
 import pyautogui
+import userinput
 
 def get_size():
     with mss.mss() as sct:
@@ -25,8 +26,6 @@ def take_screenshot():
         }
         output = "center.png"
         sct_img = sct.grab(monitor)
-        #mss.tools.to_png(sct_img.rgb, sct_img.size, output=output)
-        #print(output)
         img = np.array(sct_img)
         img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR) #BGR
         return img
@@ -41,11 +40,12 @@ def get_tile(board, row, col): # return pic of wordle square
     right = (col + 1) * tile_w
     return board[top:bottom, left:right]
 
-def tile_is_empty(tile): # change this to return true or false based on color of tile 
-    pixel_to_check = tile[5:15, 5:15]
-    avg_color = np.mean(pixel_to_check, axis=(0, 1))
-    brightness = np.mean(avg_color)
-    return brightness < 20 # tweek this value for empty vs gray tiles
+def tile_is_empty(tile):
+    gray = cv2.cvtColor(tile, cv2.COLOR_BGR2GRAY)
+    # Look at the center area where letters appear
+    h, w = gray.shape
+    center = gray[h//4:3*h//4, w//4:3*w//4]
+    return np.std(center) < 10
 
 def get_tile_color(tile):
     h, w, channels = tile.shape
@@ -88,7 +88,6 @@ def center_letter(binary, size=40):
     left, right = xs.min(), xs.max()
     letter = binary[top:bottom+1, left:right+1]
     h, w = letter.shape
-
     # Create square canvas so all letters are the same size for template matching
     canvas = np.zeros((max(h, w), max(h, w)), dtype=np.uint8)
     y_off = (canvas.shape[0] - h) // 2 # centering the letter
@@ -108,12 +107,6 @@ def load_templates():
 def recognize_letter(tile, templates):
     processed = preprocess_tile_for_letter(tile)
     centered = center_letter(processed)
-
-    # cv2.imshow("tile_processed", centered)
-    # cv2.imshow("template_A", templates["A"])
-    # cv2.waitKey(0)
-    # cv2.destroyAllWindows()
-
     best_score = 0
     best_letter = None
 
@@ -129,23 +122,6 @@ def recognize_letter(tile, templates):
         return None
 
     return best_letter
-
-
-    
-def check_left_most_tiles(board):
-    tile = get_tile(board, row, 0) # check row 1 to see if we need to do first guess
-    if tile_is_empty(tile):
-        first_word
-    for row in range(1, 6):
-        tile = get_tile(board, row, 0)
-        if tile_is_empty(tile):
-            get_info_of_previous
-            next_guess
-        elif whole_row_is_green():
-            print("We won")
-            break
-    if whole_row_is_green == False:
-        print("We lost")
 
 def trim_board(board):
     gray = cv2.cvtColor(board, cv2.COLOR_BGR2GRAY) # convert to grayscale
@@ -164,7 +140,6 @@ def trim_board(board):
     bottom = rows[-1]
 
     trimmed = board[top:bottom, left:right]
-
     #cv2.imwrite("board_trimmed.png", trimmed)
     return trimmed
 
@@ -175,9 +150,7 @@ def crop_board(img): # img is a numpy array
     left = 0
     right = w
     board = img[top:bottom, left:right]
-    
     #cv2.imwrite("board.png", board)
-
     return board
 
 def crop_keyboard(img): # img is a numpy array
@@ -188,51 +161,50 @@ def crop_keyboard(img): # img is a numpy array
     right = w
     return img[top:bottom, left:right]
 
-def main():
-    #size = get_size()
-    templates = load_templates()
+def type_guess(guess):
+    print("Typing guess:", guess)
+    time.sleep(3)
+    for ch in guess:
+        pyautogui.press(ch)
+    pyautogui.press("enter")
 
+def get_info_of_previous(board, row, templates):
+    letters = []
+    for col in range(5):
+        tile = get_tile(board, row, col)
+        color = get_tile_color(tile)
+        letter = recognize_letter(tile, templates)
+        info = userinput.Letter(letter, color, col)
+        letters.append(info)
+    return letters
 
-    # for ch in "AEIOU":
-    #     cv2.imshow(ch, templates[ch])
-    # cv2.waitKey(0)
-    # cv2.destroyAllWindows()
-
-    img = take_screenshot()
-    board = crop_board(img)
-    boardc = trim_board(board)
-    keyboard = crop_keyboard(img)
-
-    #tile = get_tile(boardc, 0, 0)
-
+def find_current_row(board):
     for row in range(6):
-        for c in range(5):
-            tile = get_tile(boardc, row, c)
-            #print("tile shape:", tile.shape)
-            #cv2.imshow(f"tile {0},{c}", tile)
-            #print(tile_is_empty(tile))
-            #print(get_tile_color(tile))
-            cv2.waitKey(50)
-            letter = recognize_letter(tile, templates)
-            print(letter)
+        if tile_is_empty(get_tile(board, row, 0)):
+            return row
+    return None  
 
-    
-    # for col in range(5):
-    #     tile = get_tile(boardc, 0, col)
-    #     cv2.imshow(f"tile {0},{col}", tile)
+def main():
+    templates = load_templates()
+    solver = userinput.Solver()
+    while True:
+        img = take_screenshot()
+        board = trim_board(crop_board(img))
+        row = find_current_row(board)
+        if row is None:
+            print("Game over (board full)")
+            return
+        if row == 0:
+            guess = solver.first_word()
+        else:
+            letters = get_info_of_previous(board, row-1, templates)
 
-    #find_cur_row()
-
-    #cv2.imshow("uncropped board", img)
-    #cv2.imshow("board", board)
-
-    #cv2.imshow("board cropped", boardc)
-
-    #cv2.imshow("keyboard", keyboard)
-
-    #cv2.imshow("top left tile", tile)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+            if whole_row_is_green(board, row-1):
+                print("We won!")
+                return
+            guess = solver.next_guess(letters)
+        type_guess(guess)
+        time.sleep(4)  # wait for animation
 
 if __name__ == "__main__":
     main()
