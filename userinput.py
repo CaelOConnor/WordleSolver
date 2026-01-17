@@ -23,6 +23,7 @@ class Solver:
     def __init__(self, words_file='words.txt'):
         self.words = pd.read_csv(words_file, header=None)[0]
         self.words = self.words.str.lower()
+        self.guessed_words = set()
 
     # first word
     def first_word(self):
@@ -43,6 +44,7 @@ class Solver:
 
         word_to_guess = random.choice(vowel_heavy_words)
         print("For your first word you should guess:", word_to_guess)
+        self.guessed_words.add(word_to_guess)
         return word_to_guess
 
     # get info from user
@@ -60,6 +62,7 @@ class Solver:
     # guess bassed on on info from prev info
     def next_guess(self, guess_letters):
         possible_words = self.words.copy()
+        possible_words = possible_words[~possible_words.isin(self.guessed_words)]
         greens = set()
         yellows = set()
 
@@ -103,6 +106,7 @@ class Solver:
 
         guess = random.choice(possible_words.tolist())
         print("Next guess:", guess)
+        self.guessed_words.add(guess)
         return guess
 
 def main():
