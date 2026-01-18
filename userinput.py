@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 from collections import Counter
 import random
+import sys
 
 vowels = ['a', 'e', 'u', 'i', 'o', 'y']
 
@@ -13,7 +14,7 @@ class Letter:
     def __init__(self, let, color, pos):
         self.let = let.upper()
         self.color = color.lower()
-        self.pos = pos
+        self.pos = pos 
     
     def __repr__(self):
         return f"Letter(let='{self.let}', color='{self.color}', pos={self.pos})"
@@ -24,6 +25,12 @@ class Solver:
         self.words = pd.read_csv(words_file, header=None)[0]
         self.words = self.words.str.lower()
         self.guessed_words = set()
+
+        self.known_greens = {}
+        self.known_yellows = {} 
+        self.known_gray = set()
+        self.letter_min = Counter() 
+        self.letter_max = {}   
 
     # first word
     def first_word(self):
@@ -58,56 +65,76 @@ class Solver:
                 color = input("Invalid color. Enter green, yellow, or gray: ").strip().lower()
             guess.append(Letter(let, color, pos))
         return guess
-
-    # guess bassed on on info from prev info
-    def next_guess(self, guess_letters):
-        possible_words = self.words.copy()
-        possible_words = possible_words[~possible_words.isin(self.guessed_words)]
-        greens = set()
-        yellows = set()
+    
+    def update_knowledge(self, guess_letters):
+        per_guess_min = Counter()     # green and yellow counts 
+        per_guess_total = Counter()   # total occurrences 
 
         for ltr in guess_letters:
             let = ltr.let.lower()
+            per_guess_total[let] += 1
+
+            if ltr.color in ("green", "yellow"):
+                per_guess_min[let] += 1
+
             if ltr.color == "green":
-                greens.add(let)
+                self.known_greens[ltr.pos] = let
+
             elif ltr.color == "yellow":
-                yellows.add(let)
+                self.known_yellows.setdefault(let, set()).add(ltr.pos)
 
-        for ltr in guess_letters:
-            let, col, pos = ltr.let.lower(), ltr.color, ltr.pos
+        for let, count in per_guess_min.items():
+            self.letter_min[let] = max(self.letter_min.get(let, 0), count)
 
-            if col == "gray": # sub cases ofr gray because of duplicate letter edge cases
-                if let not in greens and let not in yellows: # remove all words with the gray letter
-                    possible_words = possible_words[~possible_words.str.contains(let)] # words = word[not words that contains that letter]
-                elif let in greens and let not in yellows: # words all words except ones that have the green letter
-                    green_positions = [ltr.pos for ltr in guess_letters if ltr.let.lower() == let and ltr.color == "green"]
-                    mask = pd.Series(False, index=possible_words.index)
-                    for pos_idx in green_positions:
-                        mask |= possible_words.str[pos_idx] == let
-                    possible_words = possible_words[mask]
-                elif let not in greens and let in yellows: # remove all words that have that letter in the gray spot and yellow but not the others
-                    mask = possible_words.str[pos] != let
-                    yellow_positions = [ltr.pos for ltr in guess_letters if ltr.let.lower() == let and ltr.color == "yellow"]
-                    yellow_mask = pd.Series(False, index=possible_words.index)
-                    for yp in yellow_positions:
-                        yellow_mask |= possible_words.str[yp] != let
-                    possible_words = possible_words[mask & yellow_mask] # combine masks
+        # gray
+        for let, total in per_guess_total.items():
+            if let not in per_guess_min:
+                # fully gray letter
+                self.known_gray.add(let)
+            elif total > per_guess_min[let]:
+                # gray + green/yellow => exact count known
+                self.letter_max[let] = self.letter_min[let]
 
-            elif col == "green":
-                possible_words = possible_words[possible_words.str[pos] == let] # contains the letters
-            elif col == "yellow":
-                mask = possible_words.str.contains(let) # contains the ltters but not in that spot
+    # guess bassed on on info from prev info
+    def next_guess(self, guess_letters):
+        # Update global knowledge
+        self.update_knowledge(guess_letters)
+
+        possible_words = self.words.copy()
+        possible_words = possible_words[~possible_words.isin(self.guessed_words)]
+
+        # greens 
+        for pos, let in self.known_greens.items():
+            possible_words = possible_words[possible_words.str[pos] == let]
+
+        # yellows
+        for let, bad_positions in self.known_yellows.items():
+            mask = possible_words.str.contains(let)
+            for pos in bad_positions:
                 mask &= possible_words.str[pos] != let
-                possible_words = possible_words[mask]
-            
+            possible_words = possible_words[mask]
+
+        # gray
+        for let in self.known_gray:
+            possible_words = possible_words[~possible_words.str.contains(let)]
+
+        # min counts
+        for let, min_c in self.letter_min.items():
+            possible_words = possible_words[possible_words.str.count(let) >= min_c]
+
+        # max counts
+        for let, max_c in self.letter_max.items():
+            possible_words = possible_words[possible_words.str.count(let) <= max_c]
+
         if possible_words.empty:
             print("No possible words left.")
-            return None
+            sys.exit(0)
 
         guess = random.choice(possible_words.tolist())
-        print("Next guess:", guess)
         self.guessed_words.add(guess)
+        print("Next guess:", guess)
         return guess
+
 
 def main():
     solver = Solver()
