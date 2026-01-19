@@ -13,10 +13,12 @@ class WebSolver:
     def __init__(self):
         self.templates = self.load_templates()
 
+    # get size of screen
     def get_size(self):
         with mss.mss() as sct:
             print(sct.monitors[2])
 
+    # will have to change for other monitors or single monitor setups
     def take_screenshot(self):
         with mss.mss() as sct:
             monitor = sct.monitors[1]
@@ -34,7 +36,8 @@ class WebSolver:
             img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR) #BGR
             return img
 
-    def get_tile(self, board, row, col): # return pic of wordle square
+    # return pic of wordle square
+    def get_tile(self, board, row, col): 
         h, w, channels = board.shape 
         tile_h = h // 6
         tile_w = w // 5
@@ -74,6 +77,7 @@ class WebSolver:
         else:
             return False
 
+    # preprocess for cv
     def preprocess_tile_for_letter(self, tile):
         gray = cv2.cvtColor(tile, cv2.COLOR_BGR2GRAY)
         _, thresh = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY) # Letter becomes white
@@ -82,6 +86,7 @@ class WebSolver:
         thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
         return thresh
 
+    # center for cv
     def center_letter(self, binary, size=40):
         ys, xs = np.where(binary > 0)
 
@@ -130,19 +135,16 @@ class WebSolver:
     def trim_board(self, board):
         gray = cv2.cvtColor(board, cv2.COLOR_BGR2GRAY) # convert to grayscale
         _, thresh = cv2.threshold(gray, 30, 255, cv2.THRESH_BINARY) # turns image intop a black and white mask _ is return value but we dont need it
-
         # crop sides
         col_sum = np.sum(thresh, axis=0)
         cols = np.where(col_sum > 0)[0]
         left = cols[0]
         right = cols[-1]
-
         # crop top and bottom
         row_sum = np.sum(thresh, axis=1)
         rows = np.where(row_sum > 0)[0]
         top = rows[0]
         bottom = rows[-1]
-
         trimmed = board[top:bottom, left:right]
         #cv2.imwrite("board_trimmed.png", trimmed)
         return trimmed
