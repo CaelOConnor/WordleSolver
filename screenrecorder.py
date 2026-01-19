@@ -1,5 +1,5 @@
 # uses opencv and mss to screenshot the screen for wordle and then play the game.
-# using mss instead of pyautogui because it supports multiple monitors.
+# using mss instead of pyautogui because it supports multiple monitors
 
 import cv2
 import mss
